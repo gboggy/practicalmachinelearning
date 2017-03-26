@@ -1,0 +1,75 @@
+---
+title: "Machine Learning on Weightlifting Data"
+author: "Greg Boggy"
+date: "3/23/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary
+
+Using inertial measurement devices such as those found in Jawbone Up, Nike FuelBand, and Fitbit, it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but rarely do they quantify how well they perform it. The goal of this project is to use machine learning techniques to classify data obtained from inertial measurement devices on the belt, forearm, arm, and dumbell of 6 participants as they perform barbell lifts correctly and incorrectly in 5 different ways.  This report will demonstrate that > 99% classification accuracy can be achieved using Random Forest Classification.  The classification methods described here can provide users with feedback on how well they are performing an activity.
+
+## Data Cleanup
+
+The training and testing data sets provided both contain a mix of raw data and summary data obtained from analysis of the raw data (e.g., variables with avg, var, stddev labels).  The summary data contains values only once per window (windows were defined by the authors of the study: [Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.](http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf), from which the data was obtained) and other than sparse entries, contain blank or NA values.  From the paper, it seems that the authors used the summary data for their classification, but it is somewhat difficult to decipher how the summary data was used.  Because the testing data set contains entirely blank or NA values for each of the summary variables, these variables cannot be used for classification of the test cases, so the training and testing datasets were subsetted to remove these variables entirely from this analysis.  Additionally, variables that describe the ID of an observation are removed from the data, since these are not variables to be included in a model (i.e., information about user names, time, and window).  Thus, the machine learning methods described here only use raw inertial data for classification and the number of variables included in the data sets were reduced from 160 to 53.
+
+```{r}
+training <- read.table("~/Desktop/programming/DataSci/RMachineLearning/finprojtrain.csv", sep = ",", header=TRUE)
+testing <- read.table("~/Desktop/programming/DataSci/RMachineLearning/finprojtest.csv", sep = ",", header=TRUE)
+
+drops <- vector()
+for (i in names(training)) {
+  x <- paste(c("training",eval(i)), collapse="$")
+  if (anyNA(eval(parse(text=x))) | any(eval(parse(text=x))=="")) {
+    drops <- c(drops, i)
+  }
+}
+subtraining <- training[, !(names(training) %in% drops)]
+subtraining <- subtraining[,-(1:7)]
+
+subtesting <- testing[, !(names(testing) %in% drops)]
+subtesting <- subtesting[,-(1:7)]
+
+names(subtraining)
+```
+
+## Model Building with Random Forests
+
+Now that the data has been cleaned, the next step is to partition the training data into a training set and a validation set.  A 70% to 30% split is used for the training and validation sets.  The training set is used to train a classifier using Random Forests.  So that the model building is completed in a reasonable amount of time yet still achieves accurate results, the number of trees is limited to 200 and 5-fold cross-validation is performed for resampling.
+
+```{r, message=F, warning=F}
+library(caret)
+set.seed(100)
+inTrain <- createDataPartition(y = subtraining$classe, p=0.7, list = FALSE)
+trainSet = subtraining[inTrain, ]
+validSet = subtraining[-inTrain, ]
+
+tc = trainControl(method = "cv", number = 5, allowParallel =TRUE)
+modRF <- train(classe ~., data = trainSet, method="rf", trControl=tc, ntree=200, importance=TRUE)
+modRF
+modRF$finalModel
+```
+
+## Calculating Out of Sample Error and Variable Importance
+
+The model achieves 99.41% accuracy on the validation set, so the out of sample error is 0.59%.  The variable importance plot shows that yaw_belt and roll_belt are the most important variables.  Interestingly, if only these two variables are used to build a classifier, ~70% accuracy is achieved; if all data from the belt sensor is used for building the classifier, the model achieves ~90% accuracy (not shown).
+```{r}
+predRF <- predict(modRF, validSet)
+confusionMatrix(validSet$classe, predRF)
+varImpPlot(modRF$finalModel, main="Variable Importance")
+```
+
+## Test Case Classification
+
+Classifications for the twenty test cases are shown:
+```{r}
+predict(modRF, subtesting[, -53])
+```
+
+## Conclusion
+
+High accuracy of classification (> 99%) of the "Qualitative Analysis of Weightlifting"" data set can be achieved using Random Forest Classification.
