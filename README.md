@@ -1,4 +1,4 @@
 # practicalmachinelearning
-My Repo for the Coursera/Johns Hopkins Course, Practical Machine Learning
+Repo for the final project in the Coursera/Johns Hopkins Course, Practical Machine Learning.
 
-This repo is integrated with RStudio!
+View the html output by going to <https://gboggy.github.io/practicalmachinelearning/>.
